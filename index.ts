@@ -1,16 +1,69 @@
-class Observer {
-  constructor(handlers) {
-    this.handlers = handlers;
-    this.isUnsubscribed = false;
-  }
+enum HTTP_METHOD {
+  GET = 'GET',
+  POST = 'POST',
+}
 
-  next(value) {
+enum HTTP_CODE {
+  STATUS_OK = 200,
+  STATUS_INTERNAL_SERVER_ERROR = 500
+}
+
+type StatusOk = {
+  status: HTTP_CODE.STATUS_OK
+}
+
+type StatusError = {
+  status: HTTP_CODE.STATUS_INTERNAL_SERVER_ERROR
+}
+
+type NextFunction = (request: Function | IRequest) => StatusOk | void
+type ErrorFunction = (error: never) => StatusError | void
+
+type Subscribe = (observer: IHandler) => () => void
+
+interface IHandler {
+  next: NextFunction,
+  error: ErrorFunction,
+  complete: () => void
+}
+
+interface IUser {
+  name: string,
+  age: number,
+  roles: string[],
+  createdAt: Date,
+  isDeleated: boolean
+}
+
+interface IRequest {
+  method: HTTP_METHOD,
+  host: string,
+  path: string,
+  body?: IUser,
+  params: object,
+  
+}
+
+interface IObserver {
+  handlers: IHandler,
+  isUnsubscribed: boolean
+}
+
+class Observer implements IObserver {
+  
+  constructor(
+    public handlers: IHandler,
+    public isUnsubscribed: boolean = false,
+    public _unsubscribe: () => void = () => {}
+    ) {}
+
+  next(value: Function | IRequest) {
     if (this.handlers.next && !this.isUnsubscribed) {
       this.handlers.next(value);
     }
   }
 
-  error(error) {
+  error(error: never) {
     if (!this.isUnsubscribed) {
       if (this.handlers.error) {
         this.handlers.error(error);
@@ -40,11 +93,10 @@ class Observer {
 }
 
 class Observable {
-  constructor(subscribe) {
-    this._subscribe = subscribe;
-  }
 
-  static from(values) {
+  constructor(public _subscribe: Subscribe) {}
+
+  static from(values: IRequest[]) {
     return new Observable((observer) => {
       values.forEach((value) => observer.next(value));
 
@@ -56,7 +108,7 @@ class Observable {
     });
   }
 
-  subscribe(obs) {
+  subscribe(obs: IHandler) {
     const observer = new Observer(obs);
 
     observer._unsubscribe = this._subscribe(observer);
@@ -69,14 +121,7 @@ class Observable {
   }
 }
 
-const HTTP_POST_METHOD = 'POST';
-const HTTP_GET_METHOD = 'GET';
-
-const HTTP_STATUS_OK = 200;
-const HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
-
-
-const userMock = {
+const userMock: IUser = {
   name: 'User Name',
   age: 26,
   roles: [
@@ -87,16 +132,16 @@ const userMock = {
   isDeleated: false,
 };
 
-const requestsMock = [
+const requestsMock: IRequest[] = [
   {
-    method: HTTP_POST_METHOD,
+    method: HTTP_METHOD.POST,
     host: 'service.example',
     path: 'user',
     body: userMock,
     params: {},
   },
   {
-    method: HTTP_GET_METHOD,
+    method: HTTP_METHOD.GET,
     host: 'service.example',
     path: 'user',
     params: {
@@ -105,13 +150,13 @@ const requestsMock = [
   }
 ];
 
-const handleRequest = (request) => {
+const handleRequest: NextFunction = (request) => {
   // handling of request
-  return {status: HTTP_STATUS_OK};
+  return {status: HTTP_CODE.STATUS_OK};
 };
-const handleError = (error) => {
+const handleError: ErrorFunction = (error) => {
   // handling of error
-  return {status: HTTP_STATUS_INTERNAL_SERVER_ERROR};
+  return {status: HTTP_CODE.STATUS_INTERNAL_SERVER_ERROR};
 };
 
 const handleComplete = () => console.log('complete');
